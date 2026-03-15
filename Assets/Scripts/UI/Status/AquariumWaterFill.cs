@@ -14,7 +14,7 @@ public class AquariumWaterFill : MonoBehaviour
 
     [Header("Настройки уровня")]
     [Tooltip("Максимальный физический уровень датчика в см (calCm[4] на Arduino = 4.0)")]
-    public float MaxLevelCm = 4.0f;
+    public float MaxLevelCm = 12.0f;
 
     [Tooltip("Плавность заполнения (0 = мгновенно)")]
     [Range(0f, 20f)]

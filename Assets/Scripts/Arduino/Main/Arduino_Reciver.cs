@@ -3,7 +3,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-
 public class ArduinoDataReceiver : MonoBehaviour
 {
     [Header("Панели устройств (ManualDeviceControl)")]
@@ -16,13 +15,12 @@ public class ArduinoDataReceiver : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _labelTemperature;   // "0°"
     [SerializeField] private TextMeshProUGUI _labelLevel;         // "0 см" (первая)
     [SerializeField] private TextMeshProUGUI _labelLevel2;        // "0 см" (вторая, если есть)
-    [SerializeField] private TextMeshProUGUI _labelBio;           // "0 см" биозагрязнение
-    [SerializeField] private TextMeshProUGUI _labelFlocculant;    // "0 см" флокулянт
+    [SerializeField] private TextMeshProUGUI _labelBio;           // биозагрязнение
+    [SerializeField] private TextMeshProUGUI _labelFlocculant;    // флокулянт
 
     [Header("Arduino")]
     [SerializeField] private ArduinoController_Connect _arduino;
 
-   
     void OnEnable()
     {
         if (_arduino == null) _arduino = ArduinoController_Connect.Instance;
@@ -34,17 +32,15 @@ public class ArduinoDataReceiver : MonoBehaviour
         if (_arduino != null) _arduino.OnMessageReceived -= Parse;
     }
 
-    
     private void Parse(string line)
     {
-        
+        // ── Управляющие воздействия ──────────────────────────────────────────
         if (line.StartsWith("CTRL"))
         {
             int pin = ParseInt(line, "PIN:");
             int htr = ParseInt(line, "HTR:");
             int vlv = ParseInt(line, "VLV:");
             int flc = ParseInt(line, "FLC:");
-
             _waterPump?.OnCtrlReceived(pin);
             _heater?.OnCtrlReceived(htr);
             _drainValve?.OnCtrlReceived(vlv);
@@ -52,7 +48,7 @@ public class ArduinoDataReceiver : MonoBehaviour
             return;
         }
 
-        
+        // ── Температура: "TEMP: 25.50 C" ────────────────────────────────────
         if (line.StartsWith("TEMP:"))
         {
             if (_labelTemperature == null) return;
@@ -61,7 +57,6 @@ public class ArduinoDataReceiver : MonoBehaviour
                 _labelTemperature.text = "ERR";
             else
             {
-                // "25.50 C" → берём первое слово
                 string num = val.Split(' ')[0];
                 if (float.TryParse(num, NumberStyles.Float,
                     CultureInfo.InvariantCulture, out float t))
@@ -70,22 +65,21 @@ public class ArduinoDataReceiver : MonoBehaviour
             return;
         }
 
-        
-        if (line.StartsWith("WATER LEVEL:"))
+        // ── Уровень воды: "WATER LEVEL RAW: 15" (значение уже в см) ─────────
+        if (line.StartsWith("WATER LEVEL RAW:"))
         {
-            if (_labelLevel == null) return;
-            string after = line.Substring(12).Trim();  // "1.23 cm ..."
-            string num = after.Split(' ')[0];
+            string num = line.Substring(16).Trim();
             if (float.TryParse(num, NumberStyles.Float,
                 CultureInfo.InvariantCulture, out float lvl))
             {
-                string txt = lvl.ToString("F2") + " см";
+                string txt = lvl.ToString("F0") + " см";
                 if (_labelLevel != null) _labelLevel.text = txt;
                 if (_labelLevel2 != null) _labelLevel2.text = txt;
             }
             return;
         }
 
+        // ── Режим авто ───────────────────────────────────────────────────────
         if (line.Contains("AUTO MODE ON"))
         {
             GlobalModeControl.Instance?.ForceState(isAuto: true);

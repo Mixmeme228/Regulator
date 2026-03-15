@@ -13,7 +13,8 @@ public class ManualDeviceControl : MonoBehaviour
     [SerializeField] private Button _btnMinus;
     [SerializeField] private Button _btnPlus;
     [SerializeField] private Button _btnSet;
-    [SerializeField] private Button _btnClose;
+    [SerializeField] private Button _btnStop;   // Стоп — обнулить, панель остаётся
+    [SerializeField] private Button _btnClose;  // × — только скрыть панель
 
     [Header("Текст значения внутри панели")]
     [SerializeField] private TextMeshProUGUI _labelValue;
@@ -28,16 +29,34 @@ public class ManualDeviceControl : MonoBehaviour
     public Color colorBtnOn = new Color(0.85f, 0.85f, 0.85f, 1f);
     public Color colorBtnOff = new Color(0.40f, 0.40f, 0.40f, 1f);
 
-    private static readonly int[] StepsPump = { 0, 50, 70, 100 };
+    // ─── Шаги ────────────────────────────────────────────────────────────────
+    private static readonly int[] StepsWater = { 0, 50, 70, 100 };
+    private static readonly int[] StepsReagent = { 0, 25, 50, 70, 100 };
     private static readonly int[] StepsBinary = { 0, 100 };
 
-    private int[] Steps => (Device == DeviceType.Heater || Device == DeviceType.DrainValve)
-        ? StepsBinary : StepsPump;
+    private int[] Steps
+    {
+        get
+        {
+            switch (Device)
+            {
+                case DeviceType.WaterPump: return StepsWater;
+                case DeviceType.ReagentPump: return StepsReagent;
+                default: return StepsBinary;
+            }
+        }
+    }
+
+    private string KeyWant => $"MDC_{Device}_wantIdx";
+    private string KeyApplied => $"MDC_{Device}_appliedIdx";
 
     private int _wantIdx = 0;
     private int _appliedIdx = 0;
     private bool _busy = false;
     private bool _prevAuto = true;
+
+  
+    private bool IsReagent => Device == DeviceType.ReagentPump;
 
     // =========================================================================
     void Awake()
@@ -45,13 +64,17 @@ public class ManualDeviceControl : MonoBehaviour
         NoTransition(_btnMinus);
         NoTransition(_btnPlus);
         NoTransition(_btnSet);
+        NoTransition(_btnStop);
     }
 
     void Start()
     {
+        LoadState();
+
         _btnMinus?.onClick.AddListener(ClickMinus);
         _btnPlus?.onClick.AddListener(ClickPlus);
         _btnSet?.onClick.AddListener(ClickSet);
+        _btnStop?.onClick.AddListener(ClickStop);
         _btnClose?.onClick.AddListener(ClickClose);
 
         _prevAuto = GlobalModeControl.Instance?.IsAuto ?? true;
@@ -63,8 +86,24 @@ public class ManualDeviceControl : MonoBehaviour
         bool g = GlobalModeControl.Instance?.IsAuto ?? true;
         if (g == _prevAuto) return;
         _prevAuto = g;
-        if (!g) _wantIdx = _appliedIdx;
+        // Реагент не сбрасывает wantIdx при переключении режима
+        if (!g && !IsReagent) _wantIdx = _appliedIdx;
         Redraw();
+    }
+
+    // ─── Сохранение / Загрузка ───────────────────────────────────────────────
+    private void SaveState()
+    {
+        PlayerPrefs.SetInt(KeyWant, _wantIdx);
+        PlayerPrefs.SetInt(KeyApplied, _appliedIdx);
+        PlayerPrefs.Save();
+    }
+
+    private void LoadState()
+    {
+        int maxIdx = Steps.Length - 1;
+        _wantIdx = Mathf.Clamp(PlayerPrefs.GetInt(KeyWant, 0), 0, maxIdx);
+        _appliedIdx = Mathf.Clamp(PlayerPrefs.GetInt(KeyApplied, 0), 0, maxIdx);
     }
 
     // ─── Кнопки ──────────────────────────────────────────────────────────────
@@ -72,6 +111,7 @@ public class ManualDeviceControl : MonoBehaviour
     {
         if (Blocked() || _wantIdx == 0) return;
         _wantIdx--;
+        SaveState();
         Redraw();
     }
 
@@ -79,55 +119,62 @@ public class ManualDeviceControl : MonoBehaviour
     {
         if (Blocked() || _wantIdx >= Steps.Length - 1) return;
         _wantIdx++;
+        SaveState();
         Redraw();
     }
 
     private void ClickSet()
     {
         if (Blocked() || _wantIdx == _appliedIdx) return;
-
-        var ard = ArduinoController_Connect.Instance;
-        if (ard == null || !ard.isConnected) return;
-
-        _busy = true;
-        Redraw();
-
-        string cmd = BuildCmd(_wantIdx);
-        ard.SendCommand(cmd, ok =>
+        SendCmd(_wantIdx, ok =>
         {
             if (ok) _appliedIdx = _wantIdx;
             else _wantIdx = _appliedIdx;
-            _busy = false;
-            Redraw();
+            SaveState();
+        });
+    }
+
+    private void ClickStop()
+    {
+        if (Blocked()) return;
+        if (_appliedIdx == 0 && _wantIdx == 0) return;
+
+        _wantIdx = 0;
+        SendCmd(0, ok =>
+        {
+            if (ok) _appliedIdx = 0;
+            else _wantIdx = _appliedIdx;
+            SaveState();
         });
     }
 
     private void ClickClose()
     {
         if (_busy) return;
-        if (_appliedIdx > 0)
-            ArduinoController_Connect.Instance?.SendRaw(BuildCmd(0));
-        _appliedIdx = 0;
-        _wantIdx = 0;
-        Redraw();
-
-        // Скрываем саму панель
         gameObject.SetActive(false);
     }
 
-    // ─── ★ Публичный метод для CloseAllPanels ────────────────────────────────
-    /// <summary>
-    /// Выключить устройство и скрыть панель.
-    /// Если устройство занято (_busy), закрытие откладывается до завершения команды.
-    /// </summary>
+    // ─── Отправка команды ────────────────────────────────────────────────────
+    private void SendCmd(int idx, System.Action<bool> onResult)
+    {
+        var ard = ArduinoController_Connect.Instance;
+        if (ard == null || !ard.isConnected) return;
+
+        _busy = true;
+        Redraw();
+
+        ard.SendCommand(BuildCmd(idx), ok =>
+        {
+            onResult(ok);
+            _busy = false;
+            Redraw();
+        });
+    }
+
+    // ─── Публичный метод для CloseAllPanels ────────────────────────────────
     public void ClosePanel()
     {
-        if (_busy)
-        {
-            // Ждём ответа Arduino, затем закрываем
-            StartCoroutine(CloseWhenFree());
-            return;
-        }
+        if (_busy) { StartCoroutine(CloseWhenFree()); return; }
         ClickClose();
     }
 
@@ -141,8 +188,9 @@ public class ManualDeviceControl : MonoBehaviour
     public void OnCtrlReceived(int value)
     {
         _appliedIdx = value > 0 ? Steps.Length - 1 : 0;
-        if (GlobalModeControl.Instance?.IsAuto ?? true)
+        if ((GlobalModeControl.Instance?.IsAuto ?? true) && !IsReagent)
             _wantIdx = _appliedIdx;
+        SaveState();
         Redraw();
     }
 
@@ -150,25 +198,39 @@ public class ManualDeviceControl : MonoBehaviour
     private void Redraw()
     {
         bool isAuto = GlobalModeControl.Instance?.IsAuto ?? true;
-        bool can = !isAuto && !_busy;
+        bool can = !_busy && (!isAuto || IsReagent); // реагент всегда can
+        bool isPump = Device == DeviceType.WaterPump || Device == DeviceType.ReagentPump;
+        bool isBinary = !isPump;
 
         PaintBtn(_btnMinus, can && _wantIdx > 0);
         PaintBtn(_btnPlus, can && _wantIdx < Steps.Length - 1);
         PaintBtn(_btnSet, can && _wantIdx != _appliedIdx);
 
-        int displayPct = isAuto ? Steps[_appliedIdx] : Steps[_wantIdx];
-        if (_labelValue) _labelValue.text = displayPct + "%";
+        if (_btnStop)
+        {
+            _btnStop.gameObject.SetActive(isPump);
+            PaintBtn(_btnStop, can && isPump && _appliedIdx > 0);
+        }
+
+        int displayPct = isAuto && !IsReagent ? Steps[_appliedIdx] : Steps[_wantIdx];
+
+        if (_labelValue)
+            _labelValue.text = isBinary
+                ? (displayPct > 0 ? "Вкл" : "Выкл")
+                : displayPct + "%";
 
         bool on = _appliedIdx > 0;
         if (_indicatorBg) _indicatorBg.color = on ? colorOn : colorOff;
-        if (_indicatorLabel) _indicatorLabel.text = Steps[_appliedIdx] + "%";
+        if (_indicatorLabel)
+            _indicatorLabel.text = isBinary
+                ? (on ? "Вкл" : "Выкл")
+                : Steps[_appliedIdx] + "%";
     }
 
     // ─── Построить команду ───────────────────────────────────────────────────
     private string BuildCmd(int idx)
     {
         int pct = Steps[idx];
-
         switch (Device)
         {
             case DeviceType.WaterPump:
@@ -179,6 +241,7 @@ public class ManualDeviceControl : MonoBehaviour
 
             case DeviceType.ReagentPump:
                 if (pct == 0) return "REAGENT_OFF";
+                if (pct == 25) return "REAGENT_25";
                 if (pct == 50) return "REAGENT_50";
                 if (pct == 70) return "REAGENT_70";
                 return "REAGENT_100";
@@ -194,7 +257,8 @@ public class ManualDeviceControl : MonoBehaviour
     }
 
     // ─── Вспомогательные ─────────────────────────────────────────────────────
-    private bool Blocked() => _busy || (GlobalModeControl.Instance?.IsAuto ?? true);
+    
+    private bool Blocked() => _busy || (!IsReagent && (GlobalModeControl.Instance?.IsAuto ?? true));
 
     private void PaintBtn(Button btn, bool active)
     {
