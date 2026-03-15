@@ -27,11 +27,11 @@ public class AquariumWaterFill : MonoBehaviour
     [Tooltip("Максимальное биозагрязнение для нормировки цвета")]
     public float maxBio = 150f;
 
-    // ── Приватные ─────────────────────────────────────────────────────────
+   
     private UnityEngine.UI.Image _image;
     private float _displayFill = 0f;
 
-    // =========================================================================
+    
     void Start()
     {
         _image = GetComponent<UnityEngine.UI.Image>();
@@ -58,7 +58,7 @@ public class AquariumWaterFill : MonoBehaviour
             _displayFill,
             transform.localScale.z);
 
-        // Цвет воды по уровню загрязнения
+        // цвет воды по уровню загрязнения
         if (_image != null && _model != null)
         {
             float bioNorm = Mathf.Clamp01(_model.currentBioConcentration / maxBio);
