@@ -15,7 +15,7 @@ public class ArduinoController_Connect : MonoBehaviour
     public event Action<ConnectionState> OnStateChanged;
     public static ArduinoController_Connect Instance { get; private set; }
 
-    // ── Данные с датчиков — читай из любого скрипта ───────────────────────
+
     public float CurrentLevelCm { get; private set; } = 0f;
     public float CurrentRawLevel { get; private set; } = 0f;
     public float CurrentTempC { get; private set; } = 0f;
@@ -352,8 +352,7 @@ public class ArduinoController_Connect : MonoBehaviour
             return;
         }
 
-        // Уровень воды — формат: "WATER LEVEL RAW: 15"
-        // Значение уже в сантиметрах (Arduino считает MAX_LEVEL - getDist)
+
         if (line.StartsWith("WATER LEVEL RAW:"))
         {
             string s = line.Substring(16).Trim();
@@ -362,8 +361,9 @@ public class ArduinoController_Connect : MonoBehaviour
                     System.Globalization.CultureInfo.InvariantCulture,
                     out float cm))
             {
-                CurrentRawLevel = cm;   // исходное значение
-                CurrentLevelCm = cm;   // уровень в сантиметрах
+                cm = Mathf.Max(0f, cm);  
+                CurrentRawLevel = cm;
+                CurrentLevelCm = cm;
             }
             return;
         }
