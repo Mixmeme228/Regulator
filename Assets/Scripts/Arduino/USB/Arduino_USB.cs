@@ -312,7 +312,6 @@ public class ArduinoController_Connect : MonoBehaviour
 
                 if (!isDataAck) LogInfo(line);
 
-                // ── Парсим телеметрию → пишем в публичные свойства ───────
                 ParseTelemetry(line);
 
                 if (_cmdBusy && !isDataAck &&
@@ -333,12 +332,13 @@ public class ArduinoController_Connect : MonoBehaviour
     }
 
     // ── Парсер телеметрии ─────────────────────────────────────────────────────
-    // "TEMP: 25.30 C"
-    // "WATER LEVEL: 2.10 cm (RAW: 380)"
-    // "STATUS: WATER OK"
-    // "CTRL PIN:75 HTR:1 FLC:0"
+    // Arduino шлёт:
+    //   "TEMP: 25.30 C"
+    //   "WATER LEVEL RAW: 15"   (значение уже в см: MAX_LEVEL - дистанция)
+    //   "CTRL PIN:75 HTR:1 FLC:0"
     private void ParseTelemetry(string line)
     {
+        // Температура
         if (line.StartsWith("TEMP:"))
         {
             string s = line.Substring(5).Trim();
@@ -352,37 +352,30 @@ public class ArduinoController_Connect : MonoBehaviour
             return;
         }
 
-        if (line.StartsWith("WATER LEVEL:"))
+        // Уровень воды — формат: "WATER LEVEL RAW: 15"
+        // Значение уже в сантиметрах (Arduino считает MAX_LEVEL - getDist)
+        if (line.StartsWith("WATER LEVEL RAW:"))
         {
-            // уровень
-            string s = line.Substring(12).Trim();
-            int sp = s.IndexOf(' ');
-            if (sp > 0 && float.TryParse(s.Substring(0, sp),
+            string s = line.Substring(16).Trim();
+            if (float.TryParse(s,
                     System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture,
-                    out float lvl))
-                CurrentLevelCm = lvl;
-
-            // RAW
-            int rawIdx = line.IndexOf("RAW:", StringComparison.Ordinal);
-            if (rawIdx >= 0)
+                    out float cm))
             {
-                string rawStr = line.Substring(rawIdx + 4).TrimEnd(')').Trim();
-                if (float.TryParse(rawStr,
-                        System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        out float raw))
-                    CurrentRawLevel = raw;
+                CurrentRawLevel = cm;   // исходное значение
+                CurrentLevelCm = cm;   // уровень в сантиметрах
             }
             return;
         }
 
+        // Статус
         if (line.StartsWith("STATUS:"))
         {
             CurrentStatus = line.Substring(7).Trim();
             return;
         }
 
+        // Управляющие воздействия
         if (line.StartsWith("CTRL"))
         {
             CurrentPumpPct = ParseInt(line, "PIN:");

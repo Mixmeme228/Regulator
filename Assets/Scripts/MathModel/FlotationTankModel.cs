@@ -32,6 +32,10 @@ public class FlotationPlantModel : MonoBehaviour
     [SerializeField] private float dbg_SensorVolume;
     [SerializeField] private float dbg_ActualHeaterPower;
 
+    [Header("Уровень воды (с датчика Arduino, см)")]
+    // Заполняется из "WATER LEVEL RAW: X" — значение уже в сантиметрах
+    public float currentLevelCm = 0f;
+
     [Header("Параметры окружения")]
     public float ambientTemperature = 20.0f;
     public float inletWaterTemp = 10.0f;
@@ -98,7 +102,6 @@ public class FlotationPlantModel : MonoBehaviour
 
         if (_arduino == null || !_arduino.isConnected) return;
 
-        // DATA — только в АВТ режиме, чтобы не перезапускать ПИ в ручном
         _sendTimer += Time.deltaTime;
         if (_sendTimer >= sendInterval)
         {
@@ -145,7 +148,7 @@ public class FlotationPlantModel : MonoBehaviour
             float energyInflow = flowIn * dt * (WaterDensity / 1000f)
                                  * SpecificHeatWater * (inletWaterTemp - currentTemperature);
             float heatLoss = heatTransferCoef * surfaceArea
-                                 * Mathf.Max(0f, currentTemperature - ambientTemperature) * dt;
+                             * Mathf.Max(0f, currentTemperature - ambientTemperature) * dt;
             currentTemperature += (energyAdded + energyInflow - heatLoss)
                                   / (mass * SpecificHeatWater);
         }
@@ -199,10 +202,22 @@ public class FlotationPlantModel : MonoBehaviour
 
     private void HandleArduinoMessage(string line)
     {
-        // ── Лог всех входящих для отладки ────────────────────
         Debug.Log($"[PlantModel] MSG: '{line}'");
 
-        // ── CTRL от ПИ-регулятора ─────────────────────────────
+        // ── Уровень воды: "WATER LEVEL RAW: 15" (уже в см) ──────────────────
+        if (line.StartsWith("WATER LEVEL RAW:"))
+        {
+            string num = line.Substring(16).Trim();
+            if (float.TryParse(num, NumberStyles.Float,
+                    CultureInfo.InvariantCulture, out float lvl))
+            {
+                currentLevelCm = lvl;
+                Debug.Log($"[PlantModel] currentLevelCm = {currentLevelCm}");
+            }
+            return;
+        }
+
+        // ── CTRL от ПИ-регулятора ─────────────────────────────────────────────
         if (line.StartsWith("CTRL"))
         {
             u_PumpIn = ParseKey(line, "PIN:");
@@ -213,44 +228,40 @@ public class FlotationPlantModel : MonoBehaviour
             return;
         }
 
-        // ── Нагреватель ───────────────────────────────────────
+        // ── Нагреватель ───────────────────────────────────────────────────────
         if (line.Contains("HEATER ON")) { u_Heater = 1f; Debug.Log("[PlantModel] u_Heater=1"); return; }
         if (line.Contains("HEATER OFF")) { u_Heater = 0f; Debug.Log("[PlantModel] u_Heater=0"); return; }
 
-        // ── Насос воды — все возможные форматы ────────────────
-        // Новый формат: "OK: WATER PUMP 50% (AUTO OFF)"
-        // Старый формат: "OK: WATER ON" / "OK: WATER OFF"
+        // ── Насос воды ────────────────────────────────────────────────────────
         if (line.Contains("WATER") && !line.Contains("LEVEL") && !line.Contains("AUTO:"))
         {
             if (line.Contains("OFF")) { u_PumpIn = 0f; Debug.Log("[PlantModel] u_PumpIn=0"); }
             else if (line.Contains("50%")) { u_PumpIn = 0.5f; Debug.Log("[PlantModel] u_PumpIn=0.5"); }
             else if (line.Contains("70%")) { u_PumpIn = 0.7f; Debug.Log("[PlantModel] u_PumpIn=0.7"); }
-            else if (line.Contains("100%") || line.Contains("ON")) { u_PumpIn = 1.0f; Debug.Log("[PlantModel] u_PumpIn=1"); }
+            else if (line.Contains("100%") || line.Contains("ON"))
+            { u_PumpIn = 1.0f; Debug.Log("[PlantModel] u_PumpIn=1"); }
             return;
         }
 
-        // ── Насос реагентов ───────────────────────────────────
+        // ── Насос реагентов ───────────────────────────────────────────────────
         if (line.Contains("REAGENT"))
         {
             if (line.Contains("OFF")) { u_Flocculant = 0f; Debug.Log("[PlantModel] u_Flocculant=0"); }
+            else if (line.Contains("25%")) { u_Flocculant = 0.25f; Debug.Log("[PlantModel] u_Flocculant=0.25"); }
             else if (line.Contains("50%")) { u_Flocculant = 0.5f; Debug.Log("[PlantModel] u_Flocculant=0.5"); }
             else if (line.Contains("70%")) { u_Flocculant = 0.7f; Debug.Log("[PlantModel] u_Flocculant=0.7"); }
-            else if (line.Contains("100%") || line.Contains("ON")) { u_Flocculant = 1.0f; Debug.Log("[PlantModel] u_Flocculant=1"); }
+            else if (line.Contains("100%") || line.Contains("ON"))
+            { u_Flocculant = 1.0f; Debug.Log("[PlantModel] u_Flocculant=1"); }
             return;
         }
 
-        // ── Клапан ────────────────────────────────────────────
+        // ── Клапан ────────────────────────────────────────────────────────────
         if (line.Contains("VALVE"))
         {
             if (line.Contains("OPEN")) { u_ValveOut = 1f; Debug.Log("[PlantModel] u_ValveOut=1"); }
             else if (line.Contains("CLOSE")) { u_ValveOut = 0f; Debug.Log("[PlantModel] u_ValveOut=0"); }
             return;
         }
-
-        // ── AUTO OFF — НЕ сбрасываем выходы модели
-        // Arduino делает allOff() сама на железе, но модель должна
-        // сохранить последние значения чтобы UI не мигал нулями.
-        // ManualDeviceControl.holdState защищает UI от временных нулей CTRL.
     }
 
     private void HandleStateChanged(ArduinoController_Connect.ConnectionState state)

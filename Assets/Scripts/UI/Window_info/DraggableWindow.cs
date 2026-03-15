@@ -22,6 +22,11 @@ public class DraggableWindow : MonoBehaviour,
     [Range(5f, 30f)]
     public float animSpeed = 15f;
 
+    [Header("Масштаб окна")]
+    [Tooltip("Итоговый масштаб окна когда оно открыто (1 = оригинал, 2 = в два раза больше)")]
+    [Range(0.1f, 5f)]
+    public float windowScale = 1f;
+
     // ─── Приватные ────────────────────────────────────────────
     private RectTransform _rect;
     private Canvas _canvas;
@@ -38,7 +43,7 @@ public class DraggableWindow : MonoBehaviour,
         _openButton?.onClick.AddListener(Open);
         _closeButton?.onClick.AddListener(Close);
 
-        _targetScale = openOnStart ? 1f : 0f;
+        _targetScale = openOnStart ? windowScale : 0f;
         transform.localScale = Vector3.one * _targetScale;
         gameObject.SetActive(openOnStart);
     }
@@ -47,8 +52,9 @@ public class DraggableWindow : MonoBehaviour,
     {
         if (!animateScale) return;
         float cur = transform.localScale.x;
-        if (Mathf.Approximately(cur, _targetScale)) return;
-        float next = Mathf.MoveTowards(cur, _targetScale, Time.deltaTime * animSpeed);
+        float target = _targetScale;
+        if (Mathf.Approximately(cur, target)) return;
+        float next = Mathf.MoveTowards(cur, target, Time.deltaTime * animSpeed);
         transform.localScale = Vector3.one * next;
         if (_targetScale <= 0f && next <= 0.01f)
         {
@@ -62,14 +68,26 @@ public class DraggableWindow : MonoBehaviour,
     {
         gameObject.SetActive(true);
         transform.SetAsLastSibling();
-        _targetScale = 1f;
-        if (!animateScale) transform.localScale = Vector3.one;
+        _targetScale = windowScale;
+        if (!animateScale) transform.localScale = Vector3.one * windowScale;
     }
 
     public void Close()
     {
         _targetScale = 0f;
         if (!animateScale) gameObject.SetActive(false);
+    }
+
+    // ── Изменить масштаб на лету ──────────────────────────────
+    /// <summary>Изменить масштаб окна в рантайме.</summary>
+    public void SetWindowScale(float scale)
+    {
+        windowScale = Mathf.Clamp(scale, 0.1f, 5f);
+        if (gameObject.activeSelf)
+        {
+            _targetScale = windowScale;
+            if (!animateScale) transform.localScale = Vector3.one * windowScale;
+        }
     }
 
     // ── Перетаскивание ────────────────────────────────────────
@@ -103,7 +121,7 @@ public class DraggableWindow : MonoBehaviour,
         // Ограничить в пределах Canvas
         var cr = _canvas.GetComponent<RectTransform>();
         var half = cr.sizeDelta * 0.5f;
-        var hw = _rect.sizeDelta * 0.5f;
+        var hw = _rect.sizeDelta * _rect.localScale.x * 0.5f; // учитываем scale
         pos.x = Mathf.Clamp(pos.x, -half.x + hw.x, half.x - hw.x);
         pos.y = Mathf.Clamp(pos.y, -half.y + hw.y, half.y - hw.y);
 
