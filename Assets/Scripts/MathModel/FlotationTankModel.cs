@@ -211,7 +211,7 @@ public class FlotationPlantModel : MonoBehaviour
             if (float.TryParse(num, NumberStyles.Float,
                     CultureInfo.InvariantCulture, out float lvl))
             {
-                currentLevelCm = lvl;
+                currentLevelCm = Mathf.Max(0, lvl);
                 Debug.Log($"[PlantModel] currentLevelCm = {currentLevelCm}");
             }
             return;

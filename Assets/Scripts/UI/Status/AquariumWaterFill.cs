@@ -45,7 +45,7 @@ public class AquariumWaterFill : MonoBehaviour
         
         float levelCm = 0f;
         if (ArduinoController_Connect.Instance != null)
-            levelCm = ArduinoController_Connect.Instance.CurrentLevelCm;
+            levelCm = Mathf.Max(0, ArduinoController_Connect.Instance.CurrentLevelCm);
 
         float target = Mathf.Clamp(levelCm, 0f, MaxLevelCm) / MaxLevelCm;
 
