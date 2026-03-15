@@ -5,7 +5,7 @@ using TMPro;
 public class GlobalModeControl : MonoBehaviour
 {
     public static GlobalModeControl Instance { get; private set; }
-    public bool IsAuto { get; private set; } = true;
+    public bool IsAuto { get; private set; } = false;
 
     
     public static bool IsAutoMode => Instance != null && Instance.IsAuto;

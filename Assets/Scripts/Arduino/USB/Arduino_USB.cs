@@ -331,11 +331,7 @@ public class ArduinoController_Connect : MonoBehaviour
         HandleDisconnect();
     }
 
-    // ── Парсер телеметрии ─────────────────────────────────────────────────────
-    // Arduino шлёт:
-    //   "TEMP: 25.30 C"
-    //   "WATER LEVEL RAW: 15"   (значение уже в см: MAX_LEVEL - дистанция)
-    //   "CTRL PIN:75 HTR:1 FLC:0"
+   
     private void ParseTelemetry(string line)
     {
         // Температура
