@@ -709,7 +709,7 @@ MonoBehaviour:
   _btnPlus: {fileID: 1514048314}
   _btnSet: {fileID: 469369008}
   _btnStop: {fileID: 507797771}
-  _btnClose: {fileID: 1532280176}
+  _btnClose: {fileID: 0}
   _labelValue: {fileID: 1864513204}
   _indicatorBg: {fileID: 0}
   _indicatorLabel: {fileID: 0}
@@ -3306,7 +3306,7 @@ MonoBehaviour:
   Type: 1
   _input: {fileID: 567694982}
   _btnSet: {fileID: 650843282}
-  _btnClose: {fileID: 650843283}
+  _btnClose: {fileID: 0}
   _model: {fileID: 677647843}
   colorIdle: {r: 0.4, g: 0.4, b: 0.4, a: 1}
   colorOk: {r: 0.1, g: 0.8, b: 0.2, a: 1}
@@ -3415,8 +3415,8 @@ MonoBehaviour:
   maxHeaterPower: 450
   flocculantSourceConc: 1000
   baseCleaningRate: 0.15
-  setpointTemperature: 15
-  setpointVolume: 3
+  setpointTemperature: 25
+  setpointVolume: 15
   setpointBio: 5
   sendInterval: 0.2
   _arduino: {fileID: 850185697}
@@ -3738,7 +3738,7 @@ MonoBehaviour:
   _btnPlus: {fileID: 2043331567}
   _btnSet: {fileID: 1099540534}
   _btnStop: {fileID: 1648525141}
-  _btnClose: {fileID: 1757307462}
+  _btnClose: {fileID: 0}
   _labelValue: {fileID: 2055764965}
   _indicatorBg: {fileID: 0}
   _indicatorLabel: {fileID: 0}
@@ -6373,7 +6373,7 @@ MonoBehaviour:
   _btnPlus: {fileID: 1804810901}
   _btnSet: {fileID: 0}
   _btnStop: {fileID: 0}
-  _btnClose: {fileID: 776288290}
+  _btnClose: {fileID: 0}
   _labelValue: {fileID: 1777884588}
   _indicatorBg: {fileID: 0}
   _indicatorLabel: {fileID: 0}
@@ -9882,7 +9882,7 @@ MonoBehaviour:
   Type: 0
   _input: {fileID: 167683817}
   _btnSet: {fileID: 2111853047}
-  _btnClose: {fileID: 2111853048}
+  _btnClose: {fileID: 0}
   _model: {fileID: 677647843}
   colorIdle: {r: 0.4, g: 0.4, b: 0.4, a: 1}
   colorOk: {r: 0.1, g: 0.8, b: 0.2, a: 1}
